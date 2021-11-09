@@ -1,6 +1,6 @@
 import numpy as np
 from math import pi
-
+import math
 
 class PlanarIK:
     """
@@ -103,8 +103,32 @@ class PlanarIK:
         q2_b = 0
         q3_b = 0
         # **** Student code goes here ****
+        x = target['o'][0]
+        y = target['o'][1]
+        phi = target['theta']
+
+        u = x-a3*np.cos(phi)
+        v = y-a3*np.sin(phi)
+
+        theta_2 = math.acos((u**2+v**2-a1**2-a2**2)/(2*a1*a2))
+
+        theta_2_neg = -math.acos((u**2+v**2-a1**2-a2**2)/(2*a1*a2))
+
+        theta_1 = math.atan2(v,u)-math.atan2((a2*np.sin(theta_2)),(a1+a2*np.cos(theta_2)))
+        theta_1_neg = math.atan2(v,u)-math.atan2((a2*np.sin(theta_2_neg)),(a1+a2*np.cos(theta_2_neg)))
+
+        q1_a = theta_1_neg
+        q1_b = theta_1
+
+        q2_a = theta_2_neg
+        q2_b = theta_2
+
+
+
+        q3_a = phi-q1_a-q2_a
+
+        q3_b = phi-q1_b-q2_b
+        print(q1_a, q2_a, q3_a)
+        print(q1_b, q2_b, q3_b)
 
         return np.array([[q1_a, q2_a, q3_a], [q1_b, q2_b, q3_b]])
-
-
-

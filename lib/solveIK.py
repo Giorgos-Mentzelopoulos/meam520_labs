@@ -72,6 +72,42 @@ class IK:
         displacement = np.zeros(3)
         axis = np.zeros(3)
 
+        displacement= target[0:3,3]-current[0:3,3]
+    
+        
+        # unit vectors of current and target frames
+        
+        xc = current[0:3,0]
+        yc = current[0:3,1]
+        zc = current[0:3,2]
+        xt = target[0:3,0]
+        yt = target[0:3,1]
+        zt = target[0:3,2]
+  
+        R = np.array([[xt@xc,xt@yc,xt@zc],[yt@xc,yt@yc,yt@zc],[zt@xc,zt@yc,zt@zc]])
+         
+         
+        #print('.....TARGET.........')
+        #print(target)
+        #print('.....CURRENT...........')
+        #print(current)
+        #print('.....R...........')
+        #print(R)
+        S = (1/2)*(R-np.transpose(R))
+        #print('.....S...........')
+        #print(displacement)
+        
+        #axis = np.array([S[2,1],S[0,2],S[1,0]])
+        #print('.......axis......')
+       
+        axis = np.array([-S[2,1],-S[0,2],-S[1,0]])
+        axis = target[0:3,0:3]@axis
+        #print(axis)
+        #print(axis,np.sqrt(axis[0]**2+axis[1]**2+axis[2]**2))
+        
+      
+       
+        
         ## END STUDENT CODE
 
         return displacement, axis
@@ -103,7 +139,27 @@ class IK:
 
         distance = 0
         angle = 0
-
+        
+        distance = np.linalg.norm(G[0:3,3]-H[0:3,3])
+        
+        # unit vectors of current and target frames
+        
+        xG = G[0:3,0]
+        yG = G[0:3,1]
+        zG = G[0:3,2]
+        xH = H[0:3,0]
+        yH = H[0:3,1]
+        zH = H[0:3,2]
+        #print(H)
+        R = np.array([[xG@xH,xG@yH,xG@zH],[yG@xH,yG@yH,yG@zH],[zG@xH,zG@yH,zG@zH]])
+        #print(R,".............")
+        trace = np.trace(R)
+      
+        if trace > 3 or trace < -1 : 
+          trace = np.trunc(trace)
+          
+        angle = acos((trace-1)/2)  
+    
         ## END STUDENT CODE
 
         return distance, angle
@@ -129,6 +185,36 @@ class IK:
 
         success = False
 
+  
+        T0e_q = IK.fk.forward(q)[1]
+        
+       
+        distance, angle = IK.distance_and_angle(target,T0e_q)
+              
+       
+        if distance <= self.linear_tol:
+            print('condition1')
+         
+            if angle <= self.angular_tol:
+               print('condition2')
+               
+               
+               joint_limits_satisfied = True
+               
+               for i in range(0,7):
+                  if q[i] > IK.upper[i]:
+                    joint_limits_satisfied = False
+                    
+                    break
+                    
+                  if q[i] < IK.lower[i]:
+                    joint_limits_satisfied = False
+                    break
+                    
+               if  joint_limits_satisfied :
+                    print('condition3')
+                    success = True
+             
         ## END STUDENT CODE
 
         return success
@@ -156,7 +242,16 @@ class IK:
         ## STUDENT CODE STARTS HERE
 
         dq = np.zeros(7)
-
+        #print('......................')
+        #print(IK.fk.forward(q)[1])
+        #print(q)
+        #print('......................')
+        v , omega = IK.displacement_and_axis(target,IK.fk.forward(q)[1])
+        #print(q, v, omega)
+        dq = IK_velocity(q, v, omega)
+        #print(dq)
+        #dq = np.fmod(dq,2*pi)
+        #print(dq)
         ## END STUDENT CODE
 
         return dq
@@ -185,7 +280,7 @@ class IK:
 
         # normalize the offsets of all joints to range from -1 to 1 within the allowed range
         offset = 2 * (q - IK.center) / (IK.upper - IK.lower)
-        dq = rate * -offset # proportional term (implied quadratic cost)
+        dq = -rate * offset # proportional term (implied quadratic cost)
 
         return dq
 
@@ -220,24 +315,47 @@ class IK:
 
             # Primary Task - Achieve End Effector Pose
             dq_ik = self.end_effector_task(q,target)
-
+          
             # Secondary Task - Center Joints
             dq_center = self.joint_centering_task(q)
-
+            #print(dq_center)
             ## STUDENT CODE STARTS HERE
 
             # Task Prioritization
             dq = np.zeros(7) # TODO: implement me!
-
+            #find the projection matrix to the null-space of the Jacobian
+            J = calcJacobian(q)
+            
+            N = np.transpose(null_space(J))
+            dq_center_proj = (N@dq_center)*N[0]
+            #print(J@dq_ik)
+            #print(J@(dq_ik + dq_center_proj))
+            dq = dq_ik + np.linalg.norm(dq_ik)*dq_center_proj
+            #print(dq)
+            
+            
+            
             # Termination Conditions
-            if True: # TODO: check termination conditions
+            #upper_limit_violation = dq>IK.upper
+           # lower_limit_violation = dq<IK.lower
+           # for i in range(7):
+           #   if upper_limit_violation[i]:
+             #     dq[i] = IK.upper[i]
+               
+            #  if lower_limit_violation[i]:
+             #     dq[i] = IK.lower[i] 
+            #print(dq)    
+            #print(all(np.abs(dq) < self.min_step_size))  
+            if len(rollout) == self.max_steps or all(np.abs(dq) < self.min_step_size): 
+                #check termination conditions
                 break # exit the while loop if conditions are met!
 
             ## END STUDENT CODE
-
-            q = q + dq
+         
+            q =  q + dq
 
         success = self.is_valid_solution(q,target)
+      
         return q, success, rollout
 
 ################################
@@ -251,21 +369,36 @@ if __name__ == "__main__":
     ik = IK()
 
     # matches figure in the handout
-    seed = np.array([0,0,0,-pi/2,0,pi/2,pi/4])
+    #seed = np.array([0,0,0,-pi/2,0,pi/2,pi/4])
+    seed = np.array([0.0,0,0,-pi/4,0,pi/2,pi/4])
 
+    #target = np.array([
+     #   [0,-1,0,0.3],
+     #   [-1,0,0,0],
+     #   [0,0,-1,.5],
+    #    [0,0,0, 1],
+    #])
+    
     target = np.array([
-        [0,-1,0,0.3],
-        [-1,0,0,0],
-        [0,0,-1,.5],
-        [0,0,0, 1],
+        [1.0,0.0,0.0,0.554],
+        [0.0,-1.0,0.0,0.0],
+        [0.0,0.0,-1.0,0.522],
+        [0.0,0.0,0.0, 1.0]
     ])
-
+ 
+    #target = np.array([
+    #    [0.965926,-0.258819,0.0,0.554],
+    #    [-0.258819,-0.965926,0.0,0.0],
+    #    [0.0,0.0,-1.0,0.522],
+    #    [0.0,0.0,0.0, 1.0]
+    #])
+    
     q, success, rollout = ik.inverse(target, seed)
 
     for i, q in enumerate(rollout):
         joints, pose = ik.fk.forward(q)
         d, ang = IK.distance_and_angle(target,pose)
-        print('iteration:',i,' q =',q, ' d={d:3.4f}  ang={ang:3.3f}'.format(d=d,ang=ang))
+        #print('iteration:',i,' q =',q, ' d={d:3.4f}  ang={ang:3.3f}'.format(d=d,ang=ang))
 
     print("Success: ",success)
     print("Solution: ",q)
