@@ -70,8 +70,8 @@ class JacobianDemo():
         ## STUDENT CODE GOES HERE
 
         # TODO: replace these!
-        xdes = JacobianDemo.x0
-        vdes = np.array([0,0,0])
+        xdes = x0 + np.array([0,ry*sin(f*t),rz*cos(f*t)])
+        vdes = np.array([0,ry*f*cos(f*t),rz*f*sin(f*t)])
 
         ## END STUDENT CODE
 
@@ -85,16 +85,19 @@ class JacobianDemo():
         t - time in sec since start
         f - frequecny in Hz of the line trajectory
         L - length of the line in meters
-        
+
         Outputs:
         xdes = 0x3 np array of target end effector position in the world frame
         vdes = 0x3 np array of target end effector linear velocity in the world frame
         """
+
+        x0 = np.array([0.307, 0, 0.487]) # corresponds to neutral position
+
         ## STUDENT CODE GOES HERE
 
         # TODO: replace these!
-        xdes = JacobianDemo.x0
-        vdes = np.array([0,0,0])
+        xdes = x0 + np.array([0,0,L*(sin(f*t))**2])
+        vdes = np.array([0,0,L*f*cos(f*t)**2])
 
         ## END STUDENT CODE
 
