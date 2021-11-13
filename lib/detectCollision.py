@@ -19,6 +19,7 @@ def detectCollision (linePt1, linePt2, box):
     :param box [xmin, ymin, zmin, xmax, ymax, zmax]: box
     :return: n dimensional array, true if line n is in collision with the box
     """
+
     n_samples = len(linePt1)
     return [detectCollisionOnce(linePt1[index], linePt2[index], box) for index in range(n_samples)]
 
@@ -41,8 +42,11 @@ def detectCollisionOnce(linePt1, linePt2, box):
     # Create point in the opposize corner of the box
     boxPt2 = np.array([box[3],box[4], box[5]])
     boxSize = boxPt2 - boxPt1
+
+
     # Find slopes vector
     lineSlope = linePt2 - linePt1
+
     lineSlope = [0.001 if num == 0 else num for num in lineSlope]
 
     # %% Begin Collision Detection
@@ -164,5 +168,3 @@ if __name__=='__main__':
     plotBox(ax, box5)
     plotBox(ax, box6)
     plt.show()
-
-
