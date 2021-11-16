@@ -43,7 +43,7 @@ def rrt(map, start, goal):
 
     # get the obstacles within your map:
     obstacles = map.obstacles
-    box_increase_offset = 0.01
+    box_increase_offset = 0.12
 
     def make_obstacle_robust(obstacles):
         # print(obstacles)

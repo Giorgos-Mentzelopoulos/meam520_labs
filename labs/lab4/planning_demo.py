@@ -13,11 +13,17 @@ from copy import deepcopy
 
 
 starts = [np.array([0, -1, 0, -2, 0, 1.57, 0]),
-          np.array([-1.2, 0.4, 0.7, -1.5, -0.2, 1.8, 0.707])]
+          np.array([-1.2, 0.4, 0.7, -1.5, -0.2, 1.8, 0.707]),
+          np.array([0, -1, 0, -2, 0, 1.57, 0]),
+          np.array([1.2, -0.4, -1.4, -0.5, 0.2, 1.8, 0.707])]
 goals = [np.array([-1.2, 1.57, 1.57, -2.07, -1.57, 1.57, 0.7]),
+         np.array([1.2, 0.4, -0.7, -1.5, 0.2, 1.8, 0.707]),
+         np.array([0.5, -1.1, 0.1, -1.5, 0, 2, 0.2]),
          np.array([1.2, 0.4, -0.7, -1.5, 0.2, 1.8, 0.707])]
 mapNames = ["map1",
-            "map3"]
+            "map1",
+            "map1",
+            "map1"]
 
 if __name__ == "__main__":
 
@@ -29,6 +35,7 @@ if __name__ == "__main__":
 
     arm = ArmController()
     index = int(sys.argv[1])-1
+    print("Index: ", index)
     print("Running test "+sys.argv[1])
     print("Moving to Start Position")
     arm.move_to_position(starts[index])

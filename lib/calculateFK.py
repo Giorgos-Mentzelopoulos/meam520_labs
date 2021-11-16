@@ -2,7 +2,7 @@ import numpy as np
 from math import pi
 
 class FK():
-    
+
     def __init__(self):
 
         # TODO: you may want to define geometric parameters here that will be
@@ -23,12 +23,12 @@ class FK():
         self.offset_angle_3 = -np.pi/2
         self.offset_angle_5 =  np.pi/2
         self.offset_angle_6 =  np.pi/4
-       
 
 
 
-      
-      
+
+
+
     def forward(self, q):
         """
         INPUT:
@@ -46,36 +46,36 @@ class FK():
         # Your code starts here
 
         # Transformation matrices
-        
+
         T0 = np.array([[1.0,0.0,0.0,0.0],[0.0,1.0,0.0,0.0],[0.0,0.0,1.0,self.d1], [0.0,0.0,0.0,1.0]])
-        
+
         T1 = np.array([[np.cos(q[0]), 0.0, -np.sin(q[0]), 0.0], [np.sin(q[0]),0.0, np.cos(q[0]), 0.0], [0.0, -1.0, 0.0, self.d2], [0.0, 0.0, 0.0, 1.0]])
-        
+
         T2 = np.array([[np.cos(q[1]), 0.0, np.sin(q[1]), 0.0], [np.sin(q[1]),0.0, -np.cos(q[1]), 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0]])
-        
+
         T3 = np.array([[np.cos(q[2]), 0.0, np.sin(q[2]), (self.d5)*np.cos(q[2])], [np.sin(q[2]),0.0, -np.cos(q[2]), (self.d5)*np.sin(q[2])], [0.0, 1.0, 0.0, self.d3+self.d4], [0.0, 0.0, 0.0, 1.0]])
-        
+
         T4 = np.array([[np.sin(q[3]-self.offset_angle_3), 0.0, np.cos(q[3]-self.offset_angle_3), (self.d6)*np.cos(q[3]-self.offset_angle_3)-(self.d7)*np.sin(q[3]-self.offset_angle_3)], [-np.cos(q[3]-self.offset_angle_3),0.0, np.sin(q[3]-self.offset_angle_3), (self.d6)*np.sin(q[3]-self.offset_angle_3)+(self.d7)*np.cos(q[3]-self.offset_angle_3)], [0.0, -1.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0]])
-        
+
         T5 = np.array([[np.cos(q[4]), 0.0, np.sin(q[4]), -(self.y_offset)*np.sin(q[4])], [np.sin(q[4]),0.0, -np.cos(q[4]), (self.y_offset)*np.cos(q[4])], [0.0, 1.0, 0.0, self.d8], [0.0, 0.0, 0.0, 1.0]])
-        
+
         T6 = np.array([[-np.sin(q[5]-self.offset_angle_5), 0.0, np.cos(q[5]-self.offset_angle_5), (self.d10)*np.cos(q[5]-self.offset_angle_5)-(self.d9)*np.sin(q[5]-self.offset_angle_5)], [np.cos(q[5]-self.offset_angle_5),0.0, np.sin(q[5]-self.offset_angle_5), (self.d10)*np.sin(q[5]-self.offset_angle_5)+(self.d9)*np.cos(q[5]-self.offset_angle_5)], [0.0, 1.0, 0.0, self.y_offset], [0.0, 0.0, 0.0, 1.0]])
-        
+
         Te = np.array([[np.cos(q[6]-self.offset_angle_6), -np.sin(q[6]-self.offset_angle_6), 0.0, 0.0], [np.sin(q[6]-self.offset_angle_6), np.cos(q[6]-self.offset_angle_6), 0.0, 0.0], [0.0, 0.0, 1.0, self.d11], [0.0, 0.0, 0.0, 1.0]])
-        
-        
+
+
         # Joint positions initialization
-        
+
         jointPositions = np.zeros((7,3))
         jointPositions_augmented = np.zeros((7,4))
         T0e = np.identity(4)
-        
+
         jointPositions_augmented[::,3] = 1.0
-        
+
         # Joint 3 is the only joint who is not at the origin of the intermediate coordinate system fixed on the link. It is however trnaslated d3 on the z axis
-        
+
         jointPositions_augmented[2,2] = self.d3
-        
+
         jointPositions[0] = np.dot(T0,jointPositions_augmented[0])[:3]
         jointPositions[1] = np.dot(T0@T1,jointPositions_augmented[1])[:3]
         jointPositions[2] = np.dot(T0@T1@T2,jointPositions_augmented[2])[:3]
@@ -83,13 +83,14 @@ class FK():
         jointPositions[4] = np.dot(T0@T1@T2@T3@T4,jointPositions_augmented[4])[:3]
         jointPositions[5] = np.dot(T0@T1@T2@T3@T4@T5,jointPositions_augmented[5])[:3]
         jointPositions[6] = np.dot(T0@T1@T2@T3@T4@T5@T6,jointPositions_augmented[6])[:3]
-      
-        
-        
+
+
+
         T0e = T0@T1@T2@T3@T4@T5@T6@Te
-     
+
         # Your code ends here
 
+        #return jointPositions, T0e,T0,T1,T2,T3,T4,T5,T6,Te
         return jointPositions, T0e
 
     # feel free to define additional helper methods to modularize your solution
@@ -103,7 +104,7 @@ if __name__ == "__main__":
 
     # matches figure in the handout
     q = np.array([0,0,0,-pi/2,0,pi/2,pi/4])
-    # arm fully extended upwards 
+    # arm fully extended upwards
     #q = np.array([0.0, 0.0,0.0,0.0,0.0,pi/2,0.0])
     # arm fully extended to the right
     #q = np.array([ 0, pi/2, 0, 0, 0, pi, pi/4 ])
@@ -117,6 +118,6 @@ if __name__ == "__main__":
     #q =np.array([ pi/2, pi/2, pi, -pi/2,  0, pi, pi/4 ])
 
     joint_positions, T0e = fk.forward(q)
-    
+
     print("Joint Positions:\n",joint_positions)
     print("End Effector Pose:\n",T0e)
