@@ -38,8 +38,133 @@ import quaternion
 import numpy as np
 import franka_interface
 import itertools
-
+from core.safety import Safety
 from core.utils import time_in_seconds
+from franka_core_msgs.msg import JointCommand
+
+from gazebo_msgs.msg import LinkStates, ModelStates
+from geometry_msgs.msg import Pose
+from tf.transformations import quaternion_matrix
+import std_msgs.msg
+from math import acos, sin, cos, pi
+
+from core.utils import time_in_seconds, transform
+
+class ObjectDetector:
+
+    def __init__(self):
+
+        self.detection_angle = 50 * np.pi / 180.0
+        self.fov = 85 * np.pi / 180.0
+        self.tag_to_block_transforms = self.generate_tag_to_block_transforms()
+
+        self.gazebo_sub = rospy.Subscriber('/gazebo/model_states', ModelStates, self.gazebo_cb);
+        self.gazebo_data = None
+
+        self.detections = []
+
+    ################
+    ## SIMULATION ##
+    ################
+
+    # Simualated tag detection!
+
+    def generate_tag_to_block_transforms(self,r=.025):
+        transforms = []
+        for i in range(4):
+            x = np.array([r,0,0])
+            rpy = np.array([0,-pi/2,pi/2])
+            T = transform(np.zeros(3),np.array([0,0,pi/2 * i])) @ transform(x,rpy)
+            transforms.append(T)
+        for j in [-1,1]:
+            x = r * np.array([0,0,j])
+            rpy = np.array([0,pi * (j - 1)/2,-pi/2+pi * (j - 1)/2])
+            T = transform(x,rpy)
+            transforms.append(T)
+        return transforms
+
+    def get_tag_to_block_transform(self,id):
+        index = id - 1 if id <= 6 else id - 1 - 6
+        return self.tag_to_block_transforms[index]
+
+    def gazebo_cb(self,msg):
+
+        # get world to camera first
+        for (name,pose) in zip(msg.name,msg.pose):
+            if 'camera' in name:
+                world_to_camera = np.linalg.inv(self.pose_to_transform(pose))
+
+        # find all tags in environment
+        tags = []
+        for (name,pose) in zip(msg.name,msg.pose):
+            if 'cube' in name: # cubes - generate virtual tags
+                block_to_world = self.pose_to_transform(pose)
+                for idx in range(6):
+                    id = idx + 1 if 'static' in name else idx + 6 + 1
+                    tag_to_block = self.get_tag_to_block_transform(id)
+                    tag_to_camera =  world_to_camera @ block_to_world @ tag_to_block
+                    tag = ('tag'+str(id),tag_to_camera)
+                    tags.append(tag)
+            if 'tag' in name: # for real calibration tag(s) on table
+                tag_to_world = self.pose_to_transform(pose)
+                tag_to_camera =  world_to_camera @ tag_to_world
+                tag = (name,tag_to_camera)
+                tags.append(tag)
+
+        tags = [tag for tag in tags if self.check_tag_visibility(tag)]
+        self.detections = tags
+
+    def angle(self,v1,v2):
+        return acos(min(1,max(-1,np.dot(v1,v2))))
+
+    def check_tag_visibility(self,tag):
+        (name, T) = tag
+        z = T[:3,2] # tag frame
+        x = T[:3,3] # tag position
+        ray = x / np.linalg.norm(x)
+        if self.angle(z,-ray) > self.detection_angle:
+            # angle between camera vector and cube too steep for detection
+            return False
+        elif self.angle(np.array([0,0,1]),ray) > self.fov/2:
+            # outside view cone
+            return False
+        else:
+            return True
+
+    def pose_to_transform(self,pose):
+        T = quaternion_matrix([
+            pose.orientation.x,
+            pose.orientation.y,
+            pose.orientation.z,
+            pose.orientation.w ])
+        T[:3,3] = np.array([
+            pose.position.x,
+            pose.position.y,
+            pose.position.z ]);
+        return T
+
+
+    ##############
+    ## HARDWARE ##
+    ##############
+
+
+    def vision_cb(self, msg):
+        # TODO: implement!
+        pass
+
+    ############
+    ## CLIENT ##
+    ############
+
+    def get_detections(self):
+        """
+
+        """
+        return self.detections.copy()
+
+
+
 
 class ArmController(franka_interface.ArmInterface):
     """
@@ -100,6 +225,8 @@ class ArmController(franka_interface.ArmInterface):
         self._time_now_old = time_in_seconds()
 
         self._arm_configured = True
+
+        self.safe = Safety()
 
 
     def _configure(self, on_state_callback):
@@ -327,7 +454,7 @@ class ArmController(franka_interface.ArmInterface):
     #######################
 
 
-    def move_to_position(self, joint_angles, timeout=10.0, threshold=0.00085, test=None):
+    def move_to_position(self, joint_angles, timeout=10.0, threshold=0.00085, test=None, is_safe=False):
         """
         Move to joint position specified (attempts to move with trajectory action client).
         This function will smoothly interpolate between the start and end positions
@@ -347,6 +474,8 @@ class ArmController(franka_interface.ArmInterface):
          move is considered successful [0.00085]
         :param test: optional function returning True if motion must be aborted
         """
+        if is_safe==False:
+            raise Exception("!!!++++++++++++++++++++++++++You are not using safe command!!!++++++++++++++++++++++++++++++++!!!")
         self.move_to_joint_positions(
             self._format_command_with_limits(joint_angles), timeout=timeout, threshold=threshold, test=test, use_moveit=False)
 
@@ -441,3 +570,61 @@ class ArmController(franka_interface.ArmInterface):
         torque_command = dict(zip(joint_names, cmd))
 
         self.set_joint_torques(torque_command)
+
+
+    def set_joint_positions_velocities(self, positions, velocities, is_safe=False):
+        """
+        Commands the joints of this limb using specified positions and velocities using impedance control.
+        Command at time t is computed as:
+
+        :math:`u_t= coriolis\_factor * coriolis\_t + K\_p * (positions - curr\_positions) +  K\_d * (velocities - curr\_velocities)`
+
+
+        :type positions: [float]
+        :param positions: desired joint positions as an ordered list corresponding to joints given by self.joint_names()
+        :type velocities: [float]
+        :param velocities: desired joint velocities as an ordered list corresponding to joints given by self.joint_names()
+        """
+        if is_safe==False:
+            raise Exception("!!!++++++++++++++++++++++++++You are not using safe command!!!++++++++++++++++++++++++++++++++!!!")
+        self._command_msg.names = self._joint_names
+        self._command_msg.position = positions
+        self._command_msg.velocity = velocities
+        self._command_msg.mode = JointCommand.IMPEDANCE_MODE
+        self._command_msg.header.stamp = rospy.Time.now()
+        self._joint_command_publisher.publish(self._command_msg)
+
+
+    def safe_move_to_position(self, joint_angles, timeout=10.0, threshold=0.00085, test=None):
+        # The safety layer
+        cur_safe = self.safe.test_new_configuration(joint_angles)
+
+        if cur_safe == True:
+            self.move_to_position(joint_angles, timeout, threshold, test, is_safe=True)
+        else:
+            print("Robot will hit the table!!! Aborting the current configuration.")
+
+    def safe_set_joint_positions_velocities(self, positions, velocities):
+        # The safety layer
+        cur_safe = self.safe.test_new_configuration(positions)
+
+        # Compute if the pose is safe
+        pose_thresh = 0.25 # in rad
+        cur_pose = self.get_positions(False)
+
+        pose_dist = np.linalg.norm(positions - cur_pose)
+
+        # Comput if the velocity is safe
+        vel_thresh = 2.0
+        cur_vel = self.get_velocities(False)
+
+        vel_dist = np.linalg.norm(velocities - cur_vel)
+
+        if pose_dist > pose_thresh:
+            print("Next provided pose is too far. Aborting the current configuration")
+        elif vel_dist > vel_thresh:
+            print("Next provided velocity is too fast. Aborting the current configruation")
+        elif cur_safe == False:
+            print("Robot will hit the table!!! Aborting the current configuration.")
+        else:
+            self.set_joint_positions_velocities(positions, velocities, is_safe=True) # for impedance control

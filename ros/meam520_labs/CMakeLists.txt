@@ -154,6 +154,7 @@ catkin_install_python(PROGRAMS scripts/worldConverter.py
 ## in contrast to setup.py, you can choose the destination
 install(PROGRAMS
    scripts/arm_controller.py
+   scripts/block_spawner.py
    DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
