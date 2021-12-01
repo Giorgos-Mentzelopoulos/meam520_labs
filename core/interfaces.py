@@ -164,7 +164,17 @@ class ObjectDetector:
         return self.detections.copy()
 
 
+    def get_static_blocks(self):
+        """
+        returns a list of np arrays containing homogenous transformations of blocks to base
+        """
+        blocks = []
+        H = transform( np.array([.5, .0, .08]), np.array([0,pi,pi])            )
+        blocks.append(H)
 
+        H = transform( np.array([.5, .0, .05]), np.array([0,pi,pi])            )
+        blocks.append(H)
+        return blocks
 
 class ArmController(franka_interface.ArmInterface):
     """
