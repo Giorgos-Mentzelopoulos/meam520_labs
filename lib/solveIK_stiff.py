@@ -15,7 +15,7 @@ class IK:
     center = lower + (upper - lower) / 2 # compute middle of range of motion of each joint
     fk = FK()
 
-    def __init__(self,linear_tol=1e-4, angular_tol=1e-3, max_steps=500, min_step_size=1e-5):
+    def __init__(self,linear_tol=1e-4, angular_tol=1e-3, max_steps=1500, min_step_size=1e-5):
         """
         Constructs an optimization-based IK solver with given solver parameters.
         Default parameters are tuned to reasonable values.
@@ -306,7 +306,9 @@ class IK:
         rollout - a list containing the guess for q at each iteration of the algorithm
         """
 
-        q = seed
+        # q = seed #np.array([-0.85566999, -1.00246097,  1.86687916, -1.49717099,  0.96796238,  1.77792418, 1.72581234])
+        q = np.array([-0.85566999, -1.00246097,  1.86687916, -1.49717099,  0.96796238,  1.77792418, 1.72581234])
+
         rollout = []
 
         while True:
@@ -346,16 +348,18 @@ class IK:
              #     dq[i] = IK.lower[i]
             #print(dq)
             #print(all(np.abs(dq) < self.min_step_size))
-            if len(rollout) == self.max_steps or all(np.abs(dq) < self.min_step_size):
+            print("norm(dq):", np.linalg.norm(dq))
+            if len(rollout) == self.max_steps or (all(np.abs(dq) < self.min_step_size) and self.is_valid_solution(q,target) == True) :
                 #check termination conditions
                 break # exit the while loop if conditions are met!
 
             ## END STUDENT CODE
 
             q =  q + dq
-            print("Iteration: ", len(rollout), "||dq|| = ", np.linalg.norm(dq))
-        success = self.is_valid_solution(q,target)
 
+        success = self.is_valid_solution(q,target)
+        # print("success:", success)
+        # print("q: ", q)
         return q, success, rollout
 
 ################################
@@ -370,21 +374,28 @@ if __name__ == "__main__":
 
     # matches figure in the handout
     #seed = np.array([0,0,0,-pi/2,0,pi/2,pi/4])
-    seed = np.array([0.0,0,0,-pi/4,0,pi/2,pi/4])
-
-    #target = np.array([
-     #   [0,-1,0,0.3],
-     #   [-1,0,0,0],
-     #   [0,0,-1,.5],
-    #    [0,0,0, 1],
-    #])
+    # seed = np.array([0.0,0,0,-pi/4,0,pi/2,pi/4])
+    seed = np.array([-0.85566999, -1.00246097,  1.86687916, -1.49717099,  0.96796238,  1.77792418, 1.72581234])
 
     target = np.array([
-        [1.0,0.0,0.0,0.554],
-        [0.0,-1.0,0.0,0.0],
-        [0.0,0.0,-1.0,0.522],
-        [0.0,0.0,0.0, 1.0]
-    ])
+            [1.0,0.0,0.0,0.1],
+            [0.0,-1.0,0.0,0.75],
+            [0.0,0.0,-1.0,0.22],
+            [0.0,0.0,0.0,1.0]])
+
+    # target = np.array([
+    #    [0,-1,0,0.3],
+    #    [-1,0,0,0],
+    #    [0,0,-1,.5],
+    #    [0,0,0, 1],
+    # ])
+
+    # target = np.array([
+    #     [1.0,0.0,0.0,0.554],
+    #     [0.0,-1.0,0.0,0.0],
+    #     [0.0,0.0,-1.0,0.522],
+    #     [0.0,0.0,0.0, 1.0]
+    # ])
 
     #target = np.array([
     #    [0.965926,-0.258819,0.0,0.554],
